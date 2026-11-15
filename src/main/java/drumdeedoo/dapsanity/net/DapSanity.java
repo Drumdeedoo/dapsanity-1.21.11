@@ -1,12 +1,19 @@
 package drumdeedoo.dapsanity.net;
 
+import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.context.CommandContext;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.permissions.Permissions;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.level.LightLayer;
@@ -53,7 +60,21 @@ public class DapSanity implements ModInitializer {
 			handleDropInterval();
 		});
 
+		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+			dispatcher.register(Commands.literal("dapsanity")
+				.requires(source -> source.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
+				.then(Commands.literal("sanity")
+					.then(Commands.literal("set")
+						.then(Commands.argument("value", IntegerArgumentType.integer())
+							.executes(DapSanity::SanitySetCommand)))));
+		});
+
     }
+
+	private static int SanitySetCommand(CommandContext<CommandSourceStack> context) {
+		sanity = IntegerArgumentType.getInteger(context, "value");
+		return 1;
+	}
 
 	public static int DebugWhenNotEqual(int a, int b){
 		if(a != b){
@@ -83,11 +104,36 @@ public class DapSanity implements ModInitializer {
 				MobEffectInstance witherEffect = new MobEffectInstance(
 						MobEffects.WITHER, // The effect registry entry
 						140,               // Duration in ticks (e.g., 10 seconds)
-						2                  // Amplifier (0 = Level I, 1 = Level II)
+						10                // Amplifier (0 = Level I, 1 = Level II)
 				);
                 player.addEffect(witherEffect);
 			}
 			ticksSinceLastDrop = 0;
+			HandleSanityWarnings(sanity);
+		}
+	}
+
+	public static void HandleSanityWarnings(int sanity){
+		MobEffectInstance blindnessEffect = new MobEffectInstance(
+				MobEffects.BLINDNESS, // The effect registry entry
+				140,               // Duration in ticks (e.g., 10 seconds)
+				0                  // Amplifier (0 = Level I, 1 = Level II)
+		);
+		if(sanity == 50){
+			//heartbeat
+			player.sendSystemMessage(Component.literal("Thump Thump"));
+		}
+		else if(sanity == 25){
+            //heartbeat, blindness, breath
+			player.sendSystemMessage(Component.literal("Thump Thump"));
+			player.sendSystemMessage(Component.literal("hhhhHHHHHHHH"));
+			player.addEffect(blindnessEffect);
+		}
+		else if(sanity<11){
+			//warning 3 blindness + eyes, whispers, heartbeat, ?vhs?
+			player.sendSystemMessage(Component.literal("Thump Thump"));
+			player.sendSystemMessage(Component.literal("*Unintelligible whispering*"));
+			player.addEffect(blindnessEffect);
 		}
 	}
 
