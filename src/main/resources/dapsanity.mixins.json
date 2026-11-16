@@ -3,7 +3,7 @@
 	"package": "drumdeedoo.dapsanity.net.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"mixins": [
-		"ExampleMixin"
+		"SomeDapUrHomiesClassMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

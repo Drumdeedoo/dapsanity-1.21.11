@@ -14,6 +14,10 @@ loom {
 	}
 }
 
+repositories{
+	maven { url = "https://www.cursemaven.com" }
+}
+
 dependencies {
 	// To change the versions see the gradle.properties file
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
@@ -22,6 +26,7 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+	modImplementation "curse.maven:dap-ur-homies-1423094:9479446"
 }
 
 processResources {
