@@ -12,7 +12,6 @@ import net.fabricmc.fabric.api.attachment.v1.AttachmentType;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.networking.v1.PlayerLookup;
-import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.core.BlockPos;
@@ -26,16 +25,23 @@ import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.level.LightLayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.network.protocol.game.ClientboundSoundPacket;
+import net.minecraft.sounds.SoundSource;
 
 
 @SuppressWarnings("ALL")
 public class DapSanity implements ModInitializer {
 
+	public static ServerPlayer p1Dapping;
+	public static ServerPlayer p2Dapping;
+	public static int tierOfDap;
+
+
 	public static final String MOD_ID = "dapsanity";
 
-	// This logger is used to write text to the console and the log file.
-	// It is considered best practice to use your mod id as the logger's name.
-	// That way, it's clear which mod wrote info, warnings, and errors.
 	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
 	public static int maxSanity = 100;
@@ -44,25 +50,25 @@ public class DapSanity implements ModInitializer {
 	public static final AttachmentType<Integer> Sanity_Attachment = AttachmentRegistry.create(
 			id("sanity"),
 			builder -> builder
-					.persistent(Codec.INT)                 // saved with the player
-					.initializer(() -> maxSanity)         // default for players with no data yet
-					.syncWith(ByteBufCodecs.INT, AttachmentSyncPredicate.targetOnly()) // send to that player's client
+					.persistent(Codec.INT)
+					.initializer(() -> maxSanity)
+					.syncWith(ByteBufCodecs.INT, AttachmentSyncPredicate.targetOnly())
 	);
 
 	public static final AttachmentType<Integer> Prev_Sanity_Attachment = AttachmentRegistry.create(
 			id("prev_sanity"),
 			builder -> builder
-					.persistent(Codec.INT)                 // saved with the player
-					.initializer(() -> maxSanity)         // default for players with no data yet
-					.syncWith(ByteBufCodecs.INT, AttachmentSyncPredicate.targetOnly()) // send to that player's client
+					.persistent(Codec.INT)
+					.initializer(() -> maxSanity)
+					.syncWith(ByteBufCodecs.INT, AttachmentSyncPredicate.targetOnly())
 	);
 
 	public static final AttachmentType<Integer> Ticks_Since_Last_Drop_Attachment = AttachmentRegistry.create(
 			id("ticks_since_last_drop"),
 			builder -> builder
-					.persistent(Codec.INT)                 // saved with the player
-					.initializer(() -> 0)         // default for players with no data yet
-					.syncWith(ByteBufCodecs.INT, AttachmentSyncPredicate.targetOnly()) // send to that player's client
+					.persistent(Codec.INT)
+					.initializer(() -> 0)
+					.syncWith(ByteBufCodecs.INT, AttachmentSyncPredicate.targetOnly())
 	);
 
 	public static Identifier id(String path) {
@@ -72,24 +78,28 @@ public class DapSanity implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		// This code runs as soon as Minecraft is in b mod-load-ready state.
-		// However, some things (like resources) may still be uninitialized.
-		// Proceed with mild caution.
-
-		LOGGER.info("Hello Fabric world!");
-
-		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
-
-		});
 
 		ServerTickEvents.START_SERVER_TICK.register(server -> {
 
 			for (ServerPlayer player : PlayerLookup.all(server)) {
-				player.setAttached(DapSanity.Prev_Sanity_Attachment, DebugWhenNotEqual(player.getAttachedOrCreate(DapSanity.Prev_Sanity_Attachment), player.getAttachedOrCreate(DapSanity.Sanity_Attachment), player));
+				//player.setAttached(DapSanity.Prev_Sanity_Attachment, DebugWhenNotEqual(player.getAttachedOrCreate(DapSanity.Prev_Sanity_Attachment), player.getAttachedOrCreate(DapSanity.Sanity_Attachment), player));
 				handleDropInterval(player);
 			}
 
+			//Increase sanity on dap depending on tier
+			if(p1Dapping != null && p2Dapping != null && tierOfDap != -1){
+				int p1NewSanity = p1Dapping.getAttachedOrCreate(Sanity_Attachment) + sanityIncrease(tierOfDap) <101 ? p1Dapping.getAttachedOrCreate(Sanity_Attachment) + sanityIncrease(tierOfDap) : 100;
+				int p2NewSanity = p2Dapping.getAttachedOrCreate(Sanity_Attachment) + sanityIncrease(tierOfDap) <101 ? p2Dapping.getAttachedOrCreate(Sanity_Attachment) + sanityIncrease(tierOfDap) : 100;
+				p1Dapping.setAttached(Sanity_Attachment, p1NewSanity);
+				p2Dapping.setAttached(Sanity_Attachment, p2NewSanity);
+
+				p1Dapping = null;
+				p2Dapping = null;
+				tierOfDap = -1;
+			}
 		});
+
+
 
 		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> dispatcher.register(Commands.literal("dapsanity")
             .requires(source -> source.permissions().hasPermission(Permissions.COMMANDS_GAMEMASTER))
@@ -101,6 +111,30 @@ public class DapSanity implements ModInitializer {
 
     }
 
+	public int sanityIncrease(int tier){
+		if (tier == 0){
+			return 10;
+		}
+		else if(tier == 1){
+			return 15;
+		}
+		else if(tier == 2){
+			return 20;
+		}
+		else if(tier == 3){
+			return 25;
+		}
+		else if(tier == 4){
+			return 50;
+		}
+		else if(tier == 5){
+			return 100;
+		}
+		else {
+			return 0;
+		}
+	}
+
 	private static int SanitySetCommand(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
 		ServerPlayer target = EntityArgument.getPlayer(context, "player");
 		int value = IntegerArgumentType.getInteger(context, "value");
@@ -111,7 +145,7 @@ public class DapSanity implements ModInitializer {
 
 		context.getSource().sendSuccess(
 				() -> Component.literal("Set " + target.getName().getString() + "'s sanity to " + value),
-				true // broadcast to other ops
+				true
 		);
 		return 1;
 	}
@@ -136,7 +170,7 @@ public class DapSanity implements ModInitializer {
 	public static void handleDropInterval(ServerPlayer player){
 		int newTicks = player.getAttachedOrCreate(Ticks_Since_Last_Drop_Attachment) + 1;
 		player.setAttached(Ticks_Since_Last_Drop_Attachment, newTicks);
-		int ticksBetweenSanityDrops = Math.toIntExact(Math.round(baseTicksBetweenSanityDrops * Math.max(1, (0.4 * GetRawLight(player)))));
+		int ticksBetweenSanityDrops = Math.toIntExact(Math.round(((16.0 / 3.0) * GetRawLight(player) + 40)));
 		if (ticksBetweenSanityDrops < player.getAttachedOrCreate(Ticks_Since_Last_Drop_Attachment) && !player.isCreative()){
 			if (player.getAttachedOrCreate(Sanity_Attachment) > 0){
 				int newSanity = player.getAttachedOrCreate(Sanity_Attachment) - 1;
@@ -144,9 +178,9 @@ public class DapSanity implements ModInitializer {
 			}
 			else {
 				MobEffectInstance witherEffect = new MobEffectInstance(
-						MobEffects.WITHER, // The effect registry entry
-						140,               // Duration in ticks (e.g., 10 seconds)
-						7                // Amplifier (0 = Level I, 1 = Level II)
+						MobEffects.WITHER,
+						140,
+						7
 				);
                 player.addEffect(witherEffect);
 			}
@@ -157,26 +191,44 @@ public class DapSanity implements ModInitializer {
 
 	public static void HandleSanityWarnings(int sanity, ServerPlayer player){
 		MobEffectInstance blindnessEffect = new MobEffectInstance(
-				MobEffects.BLINDNESS, // The effect registry entry
-				160,               // Duration in ticks (e.g., 10 seconds)
-				255                  // Amplifier (0 = Level I, 1 = Level II)
+				MobEffects.BLINDNESS,
+				160,
+				255
 		);
 		if(sanity == 50){
 			//heartbeat
-			player.sendSystemMessage(Component.literal("Thump Thump"));
+			playSoundFor(player, sanityLow, 0.5f);
 		}
 		else if(sanity == 25){
             //heartbeat, blindness, breath
-			player.sendSystemMessage(Component.literal("Thump Thump"));
-			player.sendSystemMessage(Component.literal("hhhhHHHHHHHH"));
+			playSoundFor(player, sanityLow, 1.0f);
+			playSoundFor(player, sanityReallyLow, 0.25f);
 			player.addEffect(blindnessEffect);
 		}
 		else if(sanity<11){
-			//warning 3 blindness + eyes, whispers, heartbeat, ?vhs?
-			player.sendSystemMessage(Component.literal("Thump Thump"));
-			player.sendSystemMessage(Component.literal("*Unintelligible whispering*"));
+			//warning 3 blindness, heartbeat
+			playSoundFor(player, sanityLow, 1.0f);
 			player.addEffect(blindnessEffect);
 		}
+	}
+
+	public static final SoundEvent sanityLow = registerSound("heartbeat");
+	public static final SoundEvent sanityReallyLow = registerSound("short_scary_sound");
+
+	private static SoundEvent registerSound(String name) {
+		Identifier id = id(name);
+		return Registry.register(BuiltInRegistries.SOUND_EVENT, id, SoundEvent.createVariableRangeEvent(id));
+	}
+
+	public static void playSoundFor(ServerPlayer player, SoundEvent sound, float volume) {
+		player.connection.send(new ClientboundSoundPacket(
+				BuiltInRegistries.SOUND_EVENT.wrapAsHolder(sound),
+				SoundSource.MASTER,
+				player.getX(), player.getY(), player.getZ(),
+				volume,
+				1.0f,   // pitch
+				player.getRandom().nextLong() // seed
+		));
 	}
 
 	/*

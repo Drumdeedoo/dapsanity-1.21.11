@@ -1,0 +1,12 @@
+{
+  "heartbeat": {
+    "sounds": [
+      "dapsanity:heartbeat"
+    ]
+  },
+  "short_scary_sound": {
+    "sounds": [
+      "dapsanity:short_scary_sound"
+    ]
+  }
+}

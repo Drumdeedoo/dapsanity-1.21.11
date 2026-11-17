@@ -3,9 +3,9 @@
 	"id": "dapsanity",
 	"version": "${version}",
 	"name": "DapSanity",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"description": "This mod adds a depleting sanity system that is only regainable through dapping up your homies.",
 	"authors": [
-		"Me!"
+		"Drumdeedoo"
 	],
 	"contact": {
 		"homepage": "https://fabricmc.net/",
